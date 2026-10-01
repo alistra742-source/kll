@@ -572,16 +572,10 @@ class LoaderEngine:
 @dataclass
 class Executor:
     injector: Injector = field(default_factory=Injector)
-    bridge: ExternalBridge = field(default_factory=ExternalBridge)
-    loader: LoaderEngine = field(default_factory=LoaderEngine)
     history: list[dict] = field(default_factory=list)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __post_init__(self) -> None:
-        s = config.settings()
-        self.bridge = ExternalBridge(
-            url=s.get("executor.external_url", ""), pipe=s.get("executor.pipe_name", "")
-        )
         self.history = _load_history()
 
     def resolve_pid(self, pid: int | None = None) -> int | None:
@@ -606,26 +600,18 @@ class Executor:
         if not link.ok:
             return link
 
-        loader = self.loader.probe() if probe_bridge else None
-        bridge = None if (loader and loader.ok) else (self.bridge.probe() if probe_bridge else None)
+        from . import km  # noqa: PLC0415 - avoids an import cycle at module load
+
+        driver_status = km.driver().status()
         extra = dict(link.extra)
-        extra["loader"] = {
-            "ok": bool(loader and loader.ok),
-            "connected": len((loader.extra or {}).get("sessions", [])) if loader else 0,
-            "message": loader.message if loader else "not probed",
-        }
-        extra["bridge"] = {
-            "ok": bool(bridge and bridge.ok),
-            "url": self.bridge.url if bridge and bridge.ok else "",
-            "message": bridge.message if bridge else "not probed",
-        }
+        extra["driver"] = driver_status
         parts = [link.detail]
-        if loader and loader.ok:
-            parts.append(f"loader connected — {loader.detail}")
-        elif bridge and bridge.ok:
-            parts.append(f"executor bridge live at {self.bridge.url}")
+        if driver_status.get("loaded"):
+            parts.append("kernel driver ready — scripts run through the client, no injection")
         else:
-            parts.append("no engine listening — paste the NightRelay loader into your executor")
+            parts.append(
+                "kernel driver not loaded — build and load nightrelay.sys (driver/README.md)"
+            )
         return Result(
             True,
             "link",
@@ -652,19 +638,12 @@ class Executor:
                 result = Result(False, "dll", "no Roblox client found")
             else:
                 result = self.injector.inject(target, dll_path, wipe=bool(s.get("executor.wipe_buffer", True)))
-            # A module on its own does not run Lua; hand the script to whichever
-            # engine channel has a live loader on the other end.
-            if result.ok:
-                forwarded = self.loader.execute(code, target)
-                if not forwarded.ok:
-                    forwarded = self.bridge.execute(code, target)
-                if forwarded.ok:
-                    result.detail = f"{result.detail}; {forwarded.detail}".strip("; ")
-        elif backend == "loader":
-            result = self.loader.execute(code, target)
-        elif backend == "external_core":
-            # The from-outside path: driver read/write, core-script bytecode.
-            # Attaches on demand so a first run does not need a separate step.
+            # A module on its own does not run Lua; once the kernel loads it, the
+            # module owns the Lua state and reports back over its own channel.
+        else:
+            # The path we own: kernel driver read/write, executed through the
+            # client's own Lua. Covers 'auto', 'external_core', and any unknown
+            # backend name -- there is only one execution path now.
             from . import extc  # noqa: PLC0415 - avoids a circular import at load
 
             page = extc.external()
@@ -678,13 +657,6 @@ class Executor:
             else:
                 r = page.execute(code)
                 result = Result(r.ok, "external_core", r.message, r.detail, r.duration_ms, extra=r.extra)
-        elif backend == "external":
-            result = self.bridge.execute(code, target)
-        elif self.loader.probe().ok:
-            # auto: a connected loader is the real engine, prefer it
-            result = self.loader.execute(code, target)
-        else:
-            result = self.bridge.execute(code, target)
 
         entry = {
             "time": config.uptime_stamp(),
@@ -720,20 +692,16 @@ class Executor:
     def status(self) -> dict:
         s = config.settings()
         attached = self.injector.attached_pids()
-        from . import bridge as bridge_mod  # noqa: PLC0415
+        from . import extc  # noqa: PLC0415
 
-        bridge_status = bridge_mod.bridge().status()
         return {
-            "backends": ["auto", "loader", "external", "external_core", "dll"],
+            "backends": ["auto", "external_core", "dll"],
             "backend": s.get("executor.backend", "auto"),
             "dll_path": s.get("executor.dll_path", ""),
             "attached": attached,
             "can_inject": {str(pid): self.injector.can_inject(pid) for pid in attached},
             "identity": roblox.identity(),
-            "bridge_url": self.bridge.url,
-            "bridge_pipe": self.bridge.pipe,
-            "autoexec_dir": s.get("executor.autoexec_dir", ""),
-            "loader": bridge_status,
+            "external": extc.external().status(),
             "history": self.history[:25],
             "elevated": roblox.is_elevated(),
         }

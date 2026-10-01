@@ -49,6 +49,8 @@ IOCTL_GET_BASE = _ctl_code(0x804)
 IOCTL_STRIP_HANDLE = _ctl_code(0x805)
 IOCTL_ELEVATE = _ctl_code(0x806)
 IOCTL_QUERY = _ctl_code(0x807)
+IOCTL_CALL = _ctl_code(0x808)
+IOCTL_ALLOC = _ctl_code(0x809)
 
 # --- nt load surface ------------------------------------------------------- #
 ntdll = ctypes.WinDLL("ntdll", use_last_error=True)
@@ -131,6 +133,30 @@ class NR_QUERY_RES(ctypes.Structure):
         ("Attached", wintypes.ULONG),
         ("Pid", wintypes.ULONG),
         ("TargetProcess", ctypes.c_ulonglong),
+    ]
+
+
+class NR_CALL_REQ(ctypes.Structure):
+    _pack_ = 8
+    _fields_ = [
+        ("Function", ctypes.c_ulonglong),
+        ("Arg1", ctypes.c_ulonglong),
+        ("Arg2", ctypes.c_ulonglong),
+        ("Arg3", ctypes.c_ulonglong),
+        ("Arg4", ctypes.c_ulonglong),
+        ("ArgCount", wintypes.ULONG),
+        ("Pad", wintypes.ULONG),
+        ("Return", ctypes.c_ulonglong),
+    ]
+
+
+class NR_ALLOC_REQ(ctypes.Structure):
+    _pack_ = 8
+    _fields_ = [
+        ("Size", ctypes.c_ulonglong),
+        ("Address", ctypes.c_ulonglong),
+        ("Protect", wintypes.ULONG),
+        ("Pad", wintypes.ULONG),
     ]
 
 
@@ -296,6 +322,44 @@ class KernelDriver:
         if not out.Base:
             return None
         return int(out.Base), int(out.Size)
+
+    def alloc(self, size: int, protect: int = 0x04) -> int | None:
+        """Commit ``size`` bytes inside the target; returns the base or None."""
+        req = NR_ALLOC_REQ(Size=size, Address=0, Protect=protect, Pad=0)
+        result = self._ioctl(
+            IOCTL_ALLOC, ctypes.byref(req), ctypes.sizeof(req), ctypes.sizeof(req)
+        )
+        if not result:
+            return None
+        out = NR_ALLOC_REQ.from_buffer_copy(result)
+        return int(out.Address) or None
+
+    def call(self, function: int, args: tuple[int, ...] = ()) -> int | None:
+        """Call ``function`` in the target's context. Returns RAX, or None.
+
+        This is the execution primitive that replaces CreateRemoteThread: the
+        driver attaches the target and calls the address directly, so nothing
+        usermode can hook is ever invoked. The DLL is loaded by calling the
+        target's own LoadLibraryW this way.
+        """
+        args = tuple(args)[:4] + (0,) * (4 - min(len(args), 4))
+        req = NR_CALL_REQ(
+            Function=function,
+            Arg1=args[0],
+            Arg2=args[1],
+            Arg3=args[2],
+            Arg4=args[3],
+            ArgCount=len([a for a in args if a]) if args else 0,
+            Pad=0,
+            Return=0,
+        )
+        result = self._ioctl(
+            IOCTL_CALL, ctypes.byref(req), ctypes.sizeof(req), ctypes.sizeof(req)
+        )
+        if not result:
+            return None
+        out = NR_CALL_REQ.from_buffer_copy(result)
+        return int(out.Return)
 
     def elevate(self) -> bool:
         return self._ioctl(IOCTL_ELEVATE, None, 0) is not None

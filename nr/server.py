@@ -11,7 +11,6 @@ from flask import Flask, Response, jsonify, request, send_from_directory
 
 from . import APP_NAME, APP_TAGLINE, APP_VERSION
 from . import (  # noqa: F401
-    bridge as bridge_mod,
     config,
     deepseek,
     discovery,
@@ -20,9 +19,7 @@ from . import (  # noqa: F401
     fflags,
     library as library_mod,
     license as license_mod,
-    loader_lua,
     roblox,
-    selftest_engine,
     trust as trust_mod,
 )
 
@@ -341,43 +338,6 @@ def create_app() -> Flask:
         log(result.message, "ok" if result.ok else "error")
         return jsonify(result.to_dict())
 
-    @app.post("/api/executor/probe")
-    def api_probe():
-        result = executor_mod.executor().bridge.probe(force_scan=True)
-        log(result.message, "ok" if result.ok else "warn")
-        payload = result.to_dict()
-        payload.pop("scan", None)
-        return jsonify(payload)
-
-    @app.post("/api/executor/scan")
-    def api_scan():
-        """Full discovery report: every candidate and why it was accepted.
-
-        Repeat scans inside a few seconds reuse a cached result so the UI stays
-        responsive; an explicit rescan asks for a live one.
-        """
-        body = request.get_json(silent=True) or {}
-        refresh = bool(body.get("refresh"))
-        report = executor_mod.executor().bridge.scan(refresh=refresh)
-        summary = report["summary"]
-        if report.get("cached"):
-            summary = f"{summary} (cached)"
-        log(summary, "ok" if report["ok"] else "warn")
-        return jsonify(report)
-
-    @app.post("/api/executor/selftest")
-    def api_selftest():
-        """Start or stop the inert stub used to prove the relay path."""
-        body = request.get_json(silent=True) or {}
-        engine = selftest_engine.engine()
-        if body.get("stop"):
-            result = engine.stop()
-            executor_mod.executor().bridge.url = ""
-        else:
-            result = engine.start()
-        log(result["message"], "ok" if result.get("ok") else "error")
-        return jsonify({**result, "status": engine.status()})
-
     @app.post("/api/execute")
     def api_execute():
         body = request.get_json(silent=True) or {}
@@ -449,33 +409,6 @@ def create_app() -> Flask:
         log(f"license: {lic.reason}", "ok" if lic.valid else "error")
         return jsonify({"license": lic.to_dict()})
 
-    # ------------------------------------------------------------ loader bridge
-    @app.get("/api/bridge")
-    def api_bridge():
-        return jsonify(bridge_mod.bridge().status())
-
-    @app.post("/api/bridge/start")
-    def api_bridge_start():
-        body = request.get_json(silent=True) or {}
-        port = int(body.get("port") or config.settings().get("executor.bridge_port", 8792))
-        result = bridge_mod.bridge().start(port)
-        log(result["message"], "ok" if result.get("ok") else "error")
-        return jsonify({**result, "status": bridge_mod.bridge().status()})
-
-    @app.post("/api/bridge/stop")
-    def api_bridge_stop():
-        result = bridge_mod.bridge().stop()
-        log(result["message"], "warn")
-        return jsonify({**result, "status": bridge_mod.bridge().status()})
-
-    @app.get("/api/bridge/loader")
-    def api_bridge_loader():
-        """The Lua loader, with this bridge's address already baked in."""
-        b = bridge_mod.bridge()
-        port = b.port if b.running else int(config.settings().get("executor.bridge_port", 8792))
-        source = loader_lua.render("127.0.0.1", port)
-        return jsonify({"ok": True, "port": port, "source": source, "bytes": len(source)})
-
     # ------------------------------------------------------------- settings
     @app.get("/api/settings")
     def api_settings():
@@ -490,9 +423,6 @@ def create_app() -> Flask:
         settings = config.settings()
         if patch:
             settings.update(patch)
-            if "executor" in patch:
-                executor_mod.executor().bridge.url = patch["executor"].get("external_url", "")
-                executor_mod.executor().bridge.pipe = patch["executor"].get("pipe_name", "")
         vault = config.vault()
         for key in config.SECRET_KEYS:
             if key in secrets and secrets[key] != "":

@@ -173,7 +173,30 @@ This is the point you always come back to. Every test starts here and ends here.
 
 ---
 
-## 6. What is still a `FILL`
+## 6. The execution primitives (how a DLL gets in)
+
+Usermode injection is dead: `CreateRemoteThread` is refused by the client
+(`inject_bench.py` measured `0xC000071C`). The driver crosses that line with two
+IOCTLs, and `nr/inject.py` sequences them:
+
+| IOCTL | Kernel call | What it does |
+|---|---|---|
+| `NR_ALLOC` (`0x809`) | `KeStackAttachProcess` + `ZwAllocateVirtualMemory` | commits memory **inside the target**, so no `OpenProcess`/`VirtualAllocEx` is needed |
+| `NR_CALL` (`0x808`) | `KeStackAttachProcess` + direct call | invokes an address **in the target's context** — this loads the DLL by calling the client's own `LoadLibraryW` |
+
+The full load, with **no process handle opened and no remote thread created**:
+
+1. `nr/inject.py` resolves `LoadLibraryW` *inside the client* by walking its own
+   kernel32 export table through the driver (so the address is valid in the
+   client, not in our process).
+2. `NR_ALLOC` reserves a buffer in the client.
+3. `NR_WRITE` writes the wide DLL path into it.
+4. `NR_CALL` calls `LoadLibraryW` from kernel context.
+
+`NR_CALL` is guarded (`__try`/`__except`): a bad address returns
+`STATUS_ACCESS_VIOLATION` instead of taking the machine down.
+
+## 7. What is still a `FILL`
 
 Two things are deliberately marked in `nightrelay_drv.c` because they move per
 OS build and guessing them is worse than naming them:

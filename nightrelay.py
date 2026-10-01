@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from nr import APP_NAME, APP_VERSION, bridge, config, fflags, server  # noqa: E402
+from nr import APP_NAME, APP_VERSION, config, fflags, server  # noqa: E402
 
 BROWSER_CANDIDATES = [
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -164,9 +164,6 @@ def main(argv: list[str] | None = None) -> int:
 
     atexit.register(cleanup)
     fflags.start_watcher()
-
-    loaded = bridge.bridge().start(int(settings.get("executor.bridge_port", 8792)))
-    server.log(loaded["message"], "ok" if loaded.get("ok") else "error")
 
     if args.no_window:
         print(f"{APP_NAME} serving at {url} -- press Ctrl+C to stop")
