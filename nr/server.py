@@ -415,6 +415,25 @@ def create_app() -> Flask:
         log(f"license: {lic.reason}", "ok" if lic.valid else "error")
         return jsonify({"license": lic.to_dict()})
 
+    # ------------------------------------------------------------- load paths
+    @app.get("/api/loader")
+    def api_loader_status():
+        """Which load paths are available: driver service, BYOVD, payload."""
+        from . import byovd  # noqa: PLC0415
+
+        return jsonify({"byovd": byovd.status(), "driver": executor_mod.executor().status()})
+
+    @app.post("/api/loader/byovd")
+    def api_loader_byovd():
+        """Load the driver through the BYOVD path (no certificate)."""
+        from . import byovd  # noqa: PLC0415
+
+        body = request.get_json(silent=True) or {}
+        sys_path = str(body.get("sys") or config.settings().get("driver.path", "") or "")
+        result = byovd.load(sys_path)
+        log(result.get("message", "byovd"), "ok" if result.get("ok") else "error")
+        return jsonify(result)
+
     # -------------------------------------------------------------- first run
     @app.get("/api/setup")
     def api_setup():

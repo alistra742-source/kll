@@ -318,6 +318,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "executor": {
         "backend": "auto",
         "dll_path": "",
+        # The executor payload (payload/nr_executor.dll) the app loads and drives.
+        "payload_dll": "",
         "external_url": "",
         "pipe_name": "",
         "autoexec_dir": "",
@@ -337,6 +339,14 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "server": {
         "port": 8791,
         "bind": "127.0.0.1",
+    },
+    "stealth": {
+        # Break up timing and footprint so the app does not read as automation.
+        "humanize": True,
+        # Path to the kernel-mode PE mapper used by the BYOVD path.
+        "mapper_path": "",
+        # Prefer BYOVD over the service/driver path when loading the driver.
+        "prefer_byovd": False,
     },
     "roblox": {
         # Release the single-instance lock before launching so more than one

@@ -640,6 +640,17 @@ class Executor:
                 result = self.injector.inject(target, dll_path, wipe=bool(s.get("executor.wipe_buffer", True)))
             # A module on its own does not run Lua; once the kernel loads it, the
             # module owns the Lua state and reports back over its own channel.
+        elif backend == "payload":
+            # The full path: the payload DLL runs inside the client and owns the
+            # Lua state; we compile and hand it bytecode over its pipe.
+            from . import payload as payload_mod  # noqa: PLC0415
+
+            if not target:
+                result = Result(False, "payload", "no Roblox client found")
+            else:
+                payload_dll = str(s.get("executor.payload_dll", "") or dll_path or "")
+                page = payload_mod.run(target, code, payload_dll)
+                result = Result(page.ok, "payload", page.message, page.detail)
         else:
             # The path we own: kernel driver read/write, executed through the
             # client's own Lua. Covers 'auto', 'external_core', and any unknown
@@ -695,7 +706,7 @@ class Executor:
         from . import extc  # noqa: PLC0415
 
         return {
-            "backends": ["auto", "external_core", "dll"],
+            "backends": ["auto", "payload", "external_core", "dll"],
             "backend": s.get("executor.backend", "auto"),
             "dll_path": s.get("executor.dll_path", ""),
             "attached": attached,
