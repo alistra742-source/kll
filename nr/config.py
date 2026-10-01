@@ -338,6 +338,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "port": 8791,
         "bind": "127.0.0.1",
     },
+    "roblox": {
+        # Release the single-instance lock before launching so more than one
+        # client can run at once (the "multiple games" behaviour).
+        "multi_instance": False,
+        # Re-release the lock on every launch rather than only when asked.
+        "auto_release_lock": True,
+    },
     "license": {
         # Gate the app on a valid key. Sellers flip this off for their own build.
         "required": True,

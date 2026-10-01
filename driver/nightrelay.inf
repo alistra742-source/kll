@@ -1,0 +1,56 @@
+; nightrelay.inf -- install information for the NightRelay kernel driver.
+;
+; This file is not used to load the driver during development (that is done with
+; `sc create NightRelay type= kernel ...`, see README.md). It exists because a
+; Microsoft attestation signing submission is a driver *package* -- a .cab that
+; must contain an .inf alongside the .sys. Without a valid INF there is no CAB to
+; submit and therefore no signature.
+;
+; It installs the driver as a root-enumerated software device whose service is
+; the driver itself, which is the correct shape for a WDM component that has no
+; hardware to bind to.
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = System
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider    = %NR%
+CatalogFile = nightrelay.cat
+DriverVer   = 10/01/2026,1.0.0.0
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+[Manufacturer]
+%NR% = NightRelay, NTamd64
+
+[NightRelay.NTamd64]
+%NR.DeviceDesc% = NightRelay_Install, root\nightrelay
+
+[NightRelay_Install.NT]
+CopyFiles = NightRelay_CopyFiles
+
+[NightRelay_Install.NT.Services]
+AddService = NightRelay, 0x00000002, NightRelay_Service
+
+[NightRelay_Install.NT.HW]
+AddReg = NightRelay_Hw
+
+[NightRelay_Hw]
+HKR,,,,"SoftwareDevice"
+
+[NightRelay_CopyFiles]
+nightrelay.sys
+
+[NightRelay_Service]
+DisplayName   = %NR.ServiceDesc%
+ServiceType   = 1
+StartType     = 3
+ErrorControl  = 1
+ServiceBinary = %12%\nightrelay.sys
+
+[Strings]
+NR             = "NightRelay"
+NR.DeviceDesc  = "NightRelay Kernel Component"
+NR.ServiceDesc = "NightRelay"

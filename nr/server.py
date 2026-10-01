@@ -100,9 +100,14 @@ def create_app() -> Flask:
     @app.post("/api/roblox/launch")
     def api_launch():
         body = request.get_json(silent=True) or {}
+        # Multi-instance defaults to the saved setting, so the toggle in the UI
+        # is what governs it -- an explicit flag in the request still wins.
+        multi = body.get("multi_instance")
+        if multi is None:
+            multi = bool(config.settings().get("roblox.multi_instance", False))
         result = roblox.launch(
             place_url=body.get("place_url", ""),
-            multi_instance=bool(body.get("multi_instance", False)),
+            multi_instance=bool(multi),
             extra_args=body.get("args") or None,
         )
         log(result["message"], "ok" if result["ok"] else "error")
