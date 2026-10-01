@@ -1,0 +1,42 @@
+{
+  "_comment": "Byte signatures for the addresses payload/nr_executor.c calls. These are PER ROBLOX BUILD and must be re-derived when the client updates. Format: '48 89 5C 24 ??' with '??' as a wildcard byte. 'expect' is how many times the pattern must match to be trusted; 'offset' is added to the match to reach the function entry. dump_config.py refuses any signature that does not match exactly 'expect' times, so a stale pattern is reported, never written.",
+  "_how_to_update": [
+    "1. Load RobloxPlayerBeta.exe in x64dbg / IDA.",
+    "2. Find the function (Luau is statically linked, so search by behaviour, not by export).",
+    "3. Copy ~16-24 bytes of its prologue, wildcarding every byte that shifts between builds (relative jumps, addresses).",
+    "4. Set expect=1 if the prologue is unique; raise it if the same prologue appears in more than one unrelated function.",
+    "5. Run: python tools/dump_config.py --check"
+  ],
+  "_defaults_note": "The patterns below are left blank on purpose. Shipping a guessed prologue would produce an address that matches in the wrong place, and calling it crashes the client. An empty pattern is skipped; a stale one is rejected. Fill these against your build.",
+
+  "hook_target": {
+    "pattern": "",
+    "expect": 1,
+    "offset": 0,
+    "hint": "a hot Luau C function whose first argument is lua_State* (lua_gettop is ideal -- tiny, called constantly)"
+  },
+  "lua_newthread": {
+    "pattern": "",
+    "expect": 1,
+    "offset": 0,
+    "hint": "allocates a new coroutine; called with the state, returns the new thread"
+  },
+  "lua_settop": {
+    "pattern": "",
+    "expect": 1,
+    "offset": 0,
+    "hint": "sets the stack top; used here to pop our thread back off cleanly"
+  },
+  "luau_load": {
+    "pattern": "",
+    "expect": 1,
+    "offset": 0,
+    "hint": "compiles/loads a bytecode chunk onto the stack"
+  },
+  "lua_pcall": {
+    "pattern": "",
+    "expect": 1,
+    "offset": 0,
+    "hint": "calls a function on the stack with error handling"
+  }
+}
