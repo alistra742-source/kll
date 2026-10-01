@@ -16,8 +16,10 @@ from . import (  # noqa: F401
     deepseek,
     discovery,
     executor as executor_mod,
+    extc,
     fflags,
     library as library_mod,
+    license as license_mod,
     loader_lua,
     roblox,
     selftest_engine,
@@ -398,6 +400,54 @@ def create_app() -> Flask:
     def api_history_clear():
         executor_mod.executor().clear_history()
         return jsonify({"ok": True})
+
+    # -------------------------------------------------- external executor core
+    @app.get("/api/executor/external")
+    def api_external_status():
+        """State of the from-outside executor: driver, attach, compiler, offsets."""
+        return jsonify(extc.external().status())
+
+    @app.post("/api/executor/external/attach")
+    def api_external_attach():
+        body = request.get_json(silent=True) or {}
+        result = extc.external().attach(body.get("pid"))
+        log(result.message, "ok" if result.ok else "error")
+        return jsonify(result.to_dict())
+
+    @app.post("/api/executor/external/execute")
+    def api_external_execute():
+        body = request.get_json(silent=True) or {}
+        code = body.get("code") or ""
+        if not code.strip():
+            return jsonify({"ok": False, "message": "nothing to run", "backend": "external_core"})
+        page = extc.external()
+        if not page.pid:
+            attached = page.attach(body.get("pid"))
+            if not attached.ok:
+                return jsonify(attached.to_dict())
+        result = page.execute(code)
+        log(f"external -> {result.message}", "ok" if result.ok else "error")
+        return jsonify(result.to_dict())
+
+    # ------------------------------------------------------------------ license
+    @app.get("/api/license")
+    def api_license():
+        lic = license_mod.cached()
+        return jsonify(
+            {
+                "required": license_mod.required(),
+                "hwid": license_mod.hwid(),
+                "license": lic.to_dict(),
+            }
+        )
+
+    @app.post("/api/license/activate")
+    def api_license_activate():
+        body = request.get_json(silent=True) or {}
+        url = str(body.get("url") or config.settings().get("license.url", "") or "")
+        lic = license_mod.activate(str(body.get("key") or ""), online_url=url)
+        log(f"license: {lic.reason}", "ok" if lic.valid else "error")
+        return jsonify({"license": lic.to_dict()})
 
     # ------------------------------------------------------------ loader bridge
     @app.get("/api/bridge")

@@ -1,0 +1,9 @@
+{
+  "_comment": "Per-build values for the external executor core (nr/extc.py). These move every Roblox release. Empty/zero means 'not configured' and the executor refuses by name instead of writing to a guessed address. Re-dump with tools/dump_offsets.py against your client build.",
+  "anchor": "",
+  "bytecode_ptr_offset": 0,
+  "bytecode_size_offset": 0,
+  "trigger_address": 0,
+  "compiled_chunk_marker": 0,
+  "notes": "fill every field for your build before running the external backend"
+}

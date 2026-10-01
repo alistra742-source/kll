@@ -662,6 +662,22 @@ class Executor:
                     result.detail = f"{result.detail}; {forwarded.detail}".strip("; ")
         elif backend == "loader":
             result = self.loader.execute(code, target)
+        elif backend == "external_core":
+            # The from-outside path: driver read/write, core-script bytecode.
+            # Attaches on demand so a first run does not need a separate step.
+            from . import extc  # noqa: PLC0415 - avoids a circular import at load
+
+            page = extc.external()
+            if not page.pid:
+                auto = page.attach(target)
+                if not auto.ok:
+                    result = Result(False, "external_core", auto.message, auto.detail)
+                else:
+                    r = page.execute(code)
+                    result = Result(r.ok, "external_core", r.message, r.detail, r.duration_ms, extra=r.extra)
+            else:
+                r = page.execute(code)
+                result = Result(r.ok, "external_core", r.message, r.detail, r.duration_ms, extra=r.extra)
         elif backend == "external":
             result = self.bridge.execute(code, target)
         elif self.loader.probe().ok:
@@ -708,7 +724,7 @@ class Executor:
 
         bridge_status = bridge_mod.bridge().status()
         return {
-            "backends": ["auto", "loader", "external", "dll"],
+            "backends": ["auto", "loader", "external", "external_core", "dll"],
             "backend": s.get("executor.backend", "auto"),
             "dll_path": s.get("executor.dll_path", ""),
             "attached": attached,

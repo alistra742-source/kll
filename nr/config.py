@@ -30,6 +30,7 @@ SECRET_KEYS = (
     "deepseek_api_key",
     "deepseek_user_token",
     "executor_token",
+    "license_key",
 )
 
 
@@ -336,6 +337,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "server": {
         "port": 8791,
         "bind": "127.0.0.1",
+    },
+    "license": {
+        # Gate the app on a valid key. Sellers flip this off for their own build.
+        "required": True,
+        # Optional server-side check. Empty means fully offline (signed keys only).
+        "url": "",
     },
 }
 
