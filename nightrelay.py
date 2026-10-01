@@ -165,6 +165,21 @@ def main(argv: list[str] | None = None) -> int:
     atexit.register(cleanup)
     fflags.start_watcher()
 
+    # First-run check: if the machine is not yet provisioned for the driver, say
+    # so plainly -- and once test signing is on but a reboot has not happened
+    # yet, that is the one line the user needs to see.
+    try:
+        from nr import setup as setup_mod  # noqa: PLC0415
+
+        setup_mod.finalize_if_rebooted()
+        setup_status = setup_mod.status()
+        if setup_status.get("restart_pending"):
+            server.log("restart your PC to finish setup", "warn")
+        elif not setup_status.get("ready"):
+            server.log("first-run setup has not been completed", "warn")
+    except Exception as exc:  # noqa: BLE001 - setup must never stop the app booting
+        server.log(f"setup check skipped: {exc}", "warn")
+
     if args.no_window:
         print(f"{APP_NAME} serving at {url} -- press Ctrl+C to stop")
         try:

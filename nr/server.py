@@ -20,6 +20,7 @@ from . import (  # noqa: F401
     library as library_mod,
     license as license_mod,
     roblox,
+    setup as setup_mod,
     trust as trust_mod,
 )
 
@@ -413,6 +414,25 @@ def create_app() -> Flask:
         lic = license_mod.activate(str(body.get("key") or ""), online_url=url)
         log(f"license: {lic.reason}", "ok" if lic.valid else "error")
         return jsonify({"license": lic.to_dict()})
+
+    # -------------------------------------------------------------- first run
+    @app.get("/api/setup")
+    def api_setup():
+        """Whether the machine is ready for the driver, and what is missing."""
+        return jsonify(setup_mod.status())
+
+    @app.post("/api/setup/run")
+    def api_setup_run():
+        """Install the certificate and enable test signing, then ask for a restart."""
+        result = setup_mod.provision()
+        log(result.get("message", "setup finished"), "ok" if result.get("ok") else "warn")
+        result["status"] = setup_mod.status()
+        return jsonify(result)
+
+    @app.post("/api/setup/elevate")
+    def api_setup_elevate():
+        started = setup_mod.elevate()
+        return jsonify({"ok": started, "message": "a UAC prompt should appear"})
 
     # ------------------------------------------------------------- settings
     @app.get("/api/settings")
