@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NightRelay</title>
+<style>
+  :root{
+    --bg:#06060b; --panel:rgba(255,255,255,.038); --panel-2:rgba(255,255,255,.055);
+    --line:rgba(255,255,255,.075); --line-2:rgba(255,255,255,.13);
+    --txt:#e7e8f2; --dim:#8b8ea6; --dim-2:#5d6076;
+    --violet:#8b5cf6; --cyan:#22d3ee; --green:#34d399; --amber:#fbbf24; --red:#f87171;
+    --radius:14px;
+    --mono:"JetBrains Mono","Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--txt);overflow:hidden;
+    font:14px/1.5 "Segoe UI Variable Text","Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .aurora{position:fixed;inset:-30%;z-index:0;pointer-events:none;filter:blur(72px);opacity:.5}
+  .aurora i{position:absolute;display:block;border-radius:50%;mix-blend-mode:screen;animation:drift 26s ease-in-out infinite}
+  .aurora i:nth-child(1){width:46vw;height:46vw;left:4%;top:6%;background:radial-gradient(circle,#6d28d9,transparent 66%)}
+  .aurora i:nth-child(2){width:40vw;height:40vw;right:2%;top:22%;background:radial-gradient(circle,#0891b2,transparent 66%);animation-delay:-8s}
+  .aurora i:nth-child(3){width:34vw;height:34vw;left:38%;bottom:-6%;background:radial-gradient(circle,#be185d,transparent 68%);animation-delay:-15s}
+  @keyframes drift{0%,100%{transform:translate3d(0,0,0) scale(1)}33%{transform:translate3d(5%,-6%,0) scale(1.13)}66%{transform:translate3d(-6%,5%,0) scale(.92)}}
+  .grid{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.34;
+    background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);
+    background-size:46px 46px;mask-image:radial-gradient(ellipse at 50% 0%,#000 20%,transparent 78%)}
+  .shell{position:relative;z-index:1;display:grid;grid-template-columns:210px 1fr;height:100vh}
+  aside{border-right:1px solid var(--line);background:rgba(9,9,15,.62);backdrop-filter:blur(18px);display:flex;flex-direction:column;padding:18px 11px}
+  .brand{display:flex;align-items:center;gap:11px;padding:4px 8px 18px}
+  .mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:800;font-size:15px;
+    background:linear-gradient(140deg,var(--violet),var(--cyan));box-shadow:0 0 22px rgba(139,92,246,.5);color:#0b0b12}
+  .brand h1{font-size:16px;letter-spacing:.4px;font-weight:650}
+  .brand small{display:block;color:var(--dim-2);font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase}
+  nav{display:flex;flex-direction:column;gap:3px}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;color:var(--dim);
+    cursor:pointer;border:1px solid transparent;font-size:13.5px;transition:.16s;background:none;width:100%;text-align:left;font-family:inherit}
+  .nav-item:hover{background:var(--panel);color:var(--txt)}
+  .nav-item.on{background:linear-gradient(90deg,rgba(139,92,246,.2),rgba(34,211,238,.07));color:#fff;border-color:rgba(139,92,246,.32)}
+  .nav-item .ic{width:17px;text-align:center;font-size:14px;opacity:.9}
+  .side-foot{margin-top:auto;padding:12px 8px 2px;border-top:1px solid var(--line)}
+  .dot-row{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--dim);padding:3px 0}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--dim-2);flex:none}
+  .dot.ok{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .dot.warn{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+  .dot.bad{background:var(--red);box-shadow:0 0 8px var(--red)}
+  main{overflow:hidden;display:flex;flex-direction:column;min-width:0}
+  .topbar{display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid var(--line);
+    background:rgba(9,9,15,.5);backdrop-filter:blur(18px);flex:none}
+  .topbar h2{font-size:14.5px;font-weight:600}
+  .topbar .sub{color:var(--dim-2);font-size:11.5px;font-family:var(--mono)}
+  .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:5px 10px;border-radius:999px;
+    border:1px solid var(--line-2);background:var(--panel);color:var(--dim);font-family:var(--mono)}
+  .pill.on{border-color:rgba(52,211,153,.45);color:#bbf7d0;background:rgba(52,211,153,.1)}
+  .pill.off{border-color:rgba(248,113,113,.35);color:#fecaca;background:rgba(248,113,113,.08)}
+  .pill.warn{border-color:rgba(251,191,36,.4);color:#fde68a;background:rgba(251,191,36,.09)}
+  .views{flex:1;overflow:hidden;position:relative}
+  .view{position:absolute;inset:0;padding:18px 20px 20px;overflow:auto;display:none;animation:fade .22s ease}
+  .view.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;backdrop-filter:blur(10px)}
+  .card + .card{margin-top:13px}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:1.3px;color:var(--dim);font-weight:600;margin-bottom:11px;display:flex;align-items:center;gap:8px}
+  .card h3 .tail{margin-left:auto;text-transform:none;letter-spacing:0;font-size:11px;color:var(--dim-2);font-family:var(--mono)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .row.tight{gap:7px}
+  .grow{flex:1;min-width:120px}
+  button{font-family:inherit;font-size:13px;border-radius:10px;padding:9px 14px;border:1px solid var(--line-2);
+    background:var(--panel-2);color:var(--txt);cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:7px}
+  button:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.22)}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.42;cursor:not-allowed}
+  button.primary{background:linear-gradient(135deg,var(--violet),#6366f1);border-color:transparent;color:#fff;font-weight:600;box-shadow:0 6px 20px -6px rgba(139,92,246,.75)}
+  button.primary:hover{filter:brightness(1.12)}
+  button.ghost{background:transparent}
+  button.danger{border-color:rgba(248,113,113,.4);color:#fecaca;background:rgba(248,113,113,.08)}
+  button.tiny{padding:5px 9px;font-size:11.5px;border-radius:8px}
+  button.big{padding:13px 22px;font-size:14.5px;border-radius:12px}
+  input,select,textarea{font-family:inherit;font-size:13px;background:rgba(0,0,0,.42);border:1px solid var(--line-2);
+    color:var(--txt);border-radius:10px;padding:9px 11px;outline:none;transition:.15s;width:100%}
+  input:focus,select:focus,textarea:focus{border-color:rgba(139,92,246,.65);box-shadow:0 0 0 3px rgba(139,92,246,.14)}
+  input::placeholder,textarea::placeholder{color:var(--dim-2)}
+  select{cursor:pointer;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+    background-position:calc(100% - 16px) 18px,calc(100% - 11px) 18px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+  select option{background:#12121c}
+  label.field{display:block;margin-bottom:12px}
+  label.field span{display:block;font-size:11.5px;color:var(--dim);margin-bottom:5px}
+  .hint{font-size:11.5px;color:var(--dim-2);line-height:1.6}
+  .mono{font-family:var(--mono);font-size:12px}
+  /* attach banner */
+  .banner{display:grid;grid-template-columns:auto 1fr auto;gap:15px;align-items:center;padding:16px 18px;border-radius:var(--radius);
+    border:1px solid var(--line);background:var(--panel);transition:.25s}
+  .banner.live{border-color:rgba(52,211,153,.45);background:linear-gradient(120deg,rgba(52,211,153,.12),rgba(139,92,246,.08))}
+  .avatar{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-weight:800;font-size:18px;
+    background:linear-gradient(140deg,var(--violet),var(--cyan));color:#0b0b12;font-family:var(--mono)}
+  .banner h4{font-size:19px;font-weight:650;letter-spacing:.2px}
+  .banner .meta{font-size:11.8px;color:var(--dim);font-family:var(--mono);margin-top:3px}
+  .banner .note{font-size:12.3px;color:var(--dim);margin-top:7px;max-width:640px}
+  /* editor */
+  .editor{position:relative;border:1px solid var(--line-2);border-radius:12px;overflow:hidden;background:rgba(0,0,0,.46)}
+  .editor-top{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.022)}
+  .editor-top .file{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .wrap{position:relative;height:340px}
+  .wrap pre,.wrap textarea{margin:0;font-family:var(--mono);font-size:12.8px;line-height:1.62;padding:12px 14px;
+    white-space:pre;overflow:auto;tab-size:2;border:0;border-radius:0;background:transparent}
+  .wrap pre{position:absolute;inset:0;color:#cfd2e6;pointer-events:none;z-index:1}
+  .wrap textarea{position:absolute;inset:0;z-index:2;color:transparent;caret-color:#a78bfa;resize:none}
+  .wrap textarea::selection{background:rgba(139,92,246,.34)}
+  .t-kw{color:#c084fc;font-weight:600}.t-st{color:#86efac}.t-cm{color:#5b6079;font-style:italic}
+  .t-nm{color:#fca5a5}.t-gl{color:#67e8f9}.t-fn{color:#fcd34d}
+  /* results */
+  .results{display:grid;grid-template-columns:repeat(auto-fill,minmax(264px,1fr));gap:11px}
+  .sc{border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:var(--panel);cursor:pointer;transition:.16s}
+  .sc:hover{border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.09);transform:translateY(-2px)}
+  .sc h4{font-size:13.5px;font-weight:600;margin-bottom:5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .sc .meta{display:flex;gap:6px;flex-wrap:wrap;font-size:10.5px;color:var(--dim-2);font-family:var(--mono);margin-top:7px}
+  .sc .game{font-size:11.5px;color:var(--cyan);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tag{border:1px solid var(--line-2);border-radius:999px;padding:1.5px 7px;font-size:10px}
+  .tag.v{color:#bbf7d0;border-color:rgba(52,211,153,.4)}
+  .tag.p{color:#fecaca;border-color:rgba(248,113,113,.4)}
+  .tag.src{color:#c4b5fd;border-color:rgba(139,92,246,.42)}
+  .list-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid transparent}
+  .list-item:hover{background:var(--panel);border-color:var(--line)}
+  /* chat */
+  .chat{display:flex;flex-direction:column;gap:12px}
+  .msg{display:flex;gap:11px;max-width:96%}
+  .msg.me{margin-left:auto;flex-direction:row-reverse}
+  .av{width:28px;height:28px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;
+    background:linear-gradient(140deg,rgba(139,92,246,.9),rgba(34,211,238,.85));color:#0b0b12}
+  .msg.me .av{background:rgba(255,255,255,.13);color:var(--txt)}
+  .bubble{border:1px solid var(--line);background:var(--panel);border-radius:13px;padding:11px 13px;font-size:13.5px;line-height:1.66;min-width:0;overflow-wrap:anywhere}
+  .msg.me .bubble{background:rgba(139,92,246,.13);border-color:rgba(139,92,246,.3)}
+  .bubble pre{background:rgba(0,0,0,.55);border:1px solid var(--line);border-radius:10px;padding:10px 12px;overflow:auto;
+    font-family:var(--mono);font-size:12.3px;margin:9px 0;white-space:pre}
+  .bubble code{font-family:var(--mono);font-size:12.3px;color:#a5f3fc}
+  .bubble .codebar{display:flex;gap:6px;align-items:center;margin:-3px 0 6px;font-size:11px;color:var(--dim-2);font-family:var(--mono)}
+  .bubble .think{color:var(--dim-2);font-size:12px;border-left:2px solid rgba(139,92,246,.4);padding-left:9px;margin:7px 0;font-style:italic}
+  /* misc */
+  input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;padding:0;height:26px}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:999px;background:rgba(255,255,255,.13)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;height:19px;border-radius:50%;margin-top:-6.5px;
+    background:linear-gradient(140deg,var(--violet),var(--cyan));box-shadow:0 0 12px rgba(139,92,246,.7);cursor:pointer;border:0}
+  .fpsval{font-family:var(--mono);font-size:46px;font-weight:700;letter-spacing:-2px;line-height:1;
+    background:linear-gradient(120deg,#fff,var(--violet) 55%,var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .chips{display:flex;gap:7px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line-2);border-radius:999px;padding:5px 11px;font-size:12px;cursor:pointer;background:var(--panel);transition:.15s}
+  .chip:hover{border-color:rgba(139,92,246,.55);color:#fff}
+  .chip.on{background:linear-gradient(135deg,rgba(139,92,246,.35),rgba(34,211,238,.2));border-color:rgba(139,92,246,.55);color:#fff}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:12.3px}
+  .kv b{color:var(--dim);font-weight:500}
+  .kv span{font-family:var(--mono);overflow-wrap:anywhere}
+  .log{font-family:var(--mono);font-size:11.7px;max-height:150px;overflow:auto;display:flex;flex-direction:column-reverse;gap:1px}
+  .log div{padding:2.5px 6px;border-radius:6px;color:var(--dim)}
+  .log div.ok{color:#a7f3d0}.log div.warn{color:#fde68a}.log div.error{color:#fca5a5}
+  .log time{color:var(--dim-2);margin-right:8px}
+  .empty{padding:30px 12px;text-align:center;color:var(--dim-2);font-size:13px}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.11);border-radius:99px;border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2);background-clip:content-box}
+  #toasts{position:fixed;right:18px;bottom:18px;z-index:50;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .toast{border:1px solid var(--line-2);background:rgba(14,14,22,.95);backdrop-filter:blur(14px);border-radius:11px;
+    padding:10px 14px;font-size:12.7px;max-width:400px;animation:fade .2s ease;box-shadow:0 12px 34px -10px #000}
+  .toast.ok{border-color:rgba(52,211,153,.45)}.toast.error{border-color:rgba(248,113,113,.5)}.toast.warn{border-color:rgba(251,191,36,.5)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  .gate{max-width:560px;margin:6vh auto 0;text-align:center}
+  .gate .mark{width:56px;height:56px;border-radius:16px;margin:0 auto 16px;font-size:20px}
+  .gate h3{justify-content:center;font-size:13px}
+  .gate p{color:var(--dim);font-size:12.8px;line-height:1.65;margin-bottom:16px}
+  @media (max-width:1000px){.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="aurora"><i></i><i></i><i></i></div>
+<div class="grid"></div>
+
+<div class="shell">
+  <aside>
+    <div class="brand"><div class="mark">NR</div><div><h1>NightRelay</h1><small>script relay</small></div></div>
+    <nav id="nav">
+      <button class="nav-item on" data-view="relay"><span class="ic">⌘</span>Relay</button>
+      <button class="nav-item" data-view="ai"><span class="ic">✦</span>DeepSeek</button>
+      <button class="nav-item" data-view="boost"><span class="ic">⚡</span>Frame cap</button>
+      <button class="nav-item" data-view="scripts"><span class="ic">⌕</span>Scripts</button>
+      <button class="nav-item" data-view="settings"><span class="ic">⚙</span>Settings</button>
+    </nav>
+    <div class="side-foot">
+      <div class="dot-row"><span class="dot" id="dRoblox"></span><span id="sRoblox">checking Roblox…</span></div>
+      <div class="dot-row"><span class="dot" id="dAttach"></span><span id="sAttach">not attached</span></div>
+      <div class="dot-row"><span class="dot" id="dAi"></span><span id="sAi">DeepSeek: off</span></div>
+      <div class="dot-row"><span class="dot" id="dFps"></span><span id="sFps">cap: —</span></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <h2 id="viewTitle">Relay</h2><span class="sub" id="viewSub">attach, then run</span>
+      <span class="spacer"></span>
+      <button class="tiny ghost" id="btnWipe" title="wipe scratch files and logs">wipe traces</button>
+    </div>
+
+    <div class="views">
+      <!-- ================= RELAY ================= -->
+      <section class="view on" id="view-relay">
+        <div class="banner" id="banner">
+          <div class="avatar" id="bAvatar">—</div>
+          <div>
+            <h4 id="bTitle">Not attached</h4>
+            <div class="meta" id="bMeta">open Roblox, then press attach</div>
+            <div class="note" id="bNote">NightRelay links to the client you are already signed into and reads the account from Roblox's own files.</div>
+          </div>
+          <button class="primary big" id="btnAttach">Attach</button>
+        </div>
+
+        <div class="card" style="margin-top:13px">
+          <h3>Execution engine <span class="tail" id="tEngine">checking…</span></h3>
+          <div class="row">
+            <span class="pill" id="pillLoader">loader: —</span>
+            <span class="pill" id="pillEngine">scanning…</span>
+            <span class="pill" id="pillStub" style="display:none"></span>
+            <span class="spacer"></span>
+            <button class="tiny primary" id="btnGetLoader">get loader</button>
+            <button class="tiny" id="btnStub">run self-test</button>
+            <button class="tiny" id="btnScan">rescan</button>
+          </div>
+          <p class="hint" id="engineNote" style="margin-top:11px"></p>
+          <div id="engineCandidates" style="margin-top:9px"></div>
+        </div>
+
+        <div class="card">
+          <h3>Script <span class="tail" id="tBytes">0 bytes</span></h3>
+          <div class="editor">
+            <div class="editor-top">
+              <span class="file" id="fileName">unnamed.lua</span><span class="spacer"></span>
+              <button class="tiny ghost" id="btnSaveLocal">save</button>
+              <button class="tiny ghost" id="btnCopy">copy</button>
+              <button class="tiny ghost" id="btnClear">clear</button>
+            </div>
+            <div class="wrap">
+              <pre id="hl" aria-hidden="true"></pre>
+              <textarea id="code" spellcheck="false" placeholder="-- write Luau here, or pull one from Scripts, or ask DeepSeek to author it"></textarea>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="primary" id="btnExec">▶&nbsp; Run</button>
+            <span class="hint">ctrl+enter</span>
+            <span class="spacer"></span>
+            <span class="pill" id="pillDelivery">delivery: —</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Recent runs</h3>
+          <div id="history"><div class="empty">nothing run yet</div></div>
+        </div>
+      </section>
+
+      <!-- ================= DEEPSEEK ================= -->
+      <section class="view" id="view-ai">
+        <div id="aiGate">
+          <div class="card gate">
+            <div class="mark">DS</div>
+            <h3>Connect DeepSeek</h3>
+            <p>Paste your session token from <span class="mono">chat.deepseek.com</span> — sign in there, open
+              DevTools → Application → Local Storage → <span class="mono">chat.deepseek.com</span> → copy the
+              <span class="mono">userToken</span> value. NightRelay verifies it and seals it with Windows DPAPI.</p>
+            <input id="aiSecret" type="password" placeholder="paste session token" autocomplete="off" style="margin-bottom:10px" />
+            <div class="row" style="justify-content:center">
+              <button class="primary" id="btnConnect">Connect</button>
+              <button class="ghost tiny" id="btnUseApi">use an API key instead</button>
+            </div>
+            <p class="hint" id="aiConnectMsg" style="margin-top:12px"></p>
+          </div>
+        </div>
+
+        <div id="aiWorkspace" style="display:none">
+          <div class="card">
+            <h3>DeepSeek <span class="tail" id="tAiMode"></span></h3>
+            <div class="row">
+              <select id="aiModel" style="max-width:200px">
+                <option value="deepseek-chat">deepseek-chat</option>
+                <option value="deepseek-reasoner">deepseek-reasoner</option>
+              </select>
+              <span class="spacer"></span>
+              <button class="tiny ghost" id="btnAiNew">new session</button>
+              <button class="tiny ghost danger" id="btnAiOff">disconnect</button>
+            </div>
+          </div>
+          <div class="card" style="max-height:calc(100vh - 350px);overflow:auto">
+            <div class="chat" id="chat"></div>
+          </div>
+          <div class="card">
+            <div class="row">
+              <textarea id="aiInput" rows="2" placeholder="describe the script you want…  (enter to send)"></textarea>
+              <button class="primary" id="btnSend">send</button>
+            </div>
+            <div class="chips" style="margin-top:11px">
+              <span class="chip" data-prompt="Write a Luau script that gives the local player infinite jump, with a toggle GUI.">infinite jump + gui</span>
+              <span class="chip" data-prompt="Write a Luau autofarm script with a toggle, walkspeed control and an anti-AFK guard.">autofarm</span>
+              <span class="chip" data-prompt="Explain what this script does, then rewrite it to be more defensive:">explain a script</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= BOOST ================= -->
+      <section class="view" id="view-boost">
+        <div class="card">
+          <h3>Frame cap <span class="tail" id="tFpsState"></span></h3>
+          <div class="row" style="gap:22px;align-items:center">
+            <div><div class="fpsval" id="fpsBig">60</div><div class="hint" id="fpsBigLabel">locked</div></div>
+            <div class="grow">
+              <button class="big" id="btnFpsToggle" style="width:100%;justify-content:center">Enable uncapped frame rate</button>
+              <p class="hint" id="fpsExplain" style="margin-top:11px"></p>
+            </div>
+          </div>
+        </div>
+        <div class="two">
+          <div class="card">
+            <h3>What NightRelay changed</h3>
+            <div class="kv" id="fpsStatus"></div>
+          </div>
+          <div class="card">
+            <h3>Roblox flag policy <span class="tail" id="tDenied"></span></h3>
+            <p class="hint" id="deniedExplain"></p>
+            <div id="deniedList" class="mono" style="margin-top:9px;font-size:11.5px;color:var(--dim-2)"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= SCRIPTS ================= -->
+      <section class="view" id="view-scripts">
+        <div class="card">
+          <h3>Search hubs <span class="tail" id="tSearch">—</span></h3>
+          <div class="row">
+            <input id="q" class="grow" placeholder="game name, feature, script name…" />
+            <button class="primary" id="btnSearch">search</button>
+          </div>
+          <div class="row" style="margin-top:11px">
+            <span class="hint">sources:</span><div class="chips" id="sourceChips"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Results <span class="tail" id="tResults">idle</span></h3>
+          <div id="results"><div class="empty">search to fill this in</div></div>
+        </div>
+        <div class="card">
+          <h3>Saved locally <span class="tail" id="tLocal">—</span></h3>
+          <div id="local"><div class="empty">nothing saved</div></div>
+        </div>
+      </section>
+
+      <!-- ================= SETTINGS ================= -->
+      <section class="view" id="view-settings">
+        <div class="card">
+          <h3>Delivery backend <span class="tail">how scripts reach Roblox</span></h3>
+          <label class="field"><span>executor bridge endpoint — this is the path that works</span>
+            <input id="setExtUrl" placeholder="http://127.0.0.1:PORT/execute" /></label>
+          <label class="field"><span>named pipe, if your executor uses one</span>
+            <input id="setPipe" placeholder="\\.\pipe\your_executor" /></label>
+          <label class="field"><span>module path for the direct-loader backend</span>
+            <input id="setDll" placeholder="C:\path\to\module.dll" /></label>
+          <label class="field"><span>watch folder — for engines that auto-run a script dropped in a directory</span>
+            <input id="setAutoexec" placeholder="C:\path\to\engine\autoexec" /></label>
+          <label class="field"><span>loader bridge port — the Lua loader connects here (leave default unless it clashes)</span>
+            <input id="setBridgePort" placeholder="8792" /></label>
+          <div class="row">
+            <button class="tiny" id="btnProbe">probe for an executor</button>
+            <button class="tiny ghost" id="btnMulti">break single-instance lock</button>
+            <button class="tiny ghost" id="btnLaunch">launch a client</button>
+            <button class="tiny danger" id="btnKill">kill Roblox</button>
+          </div>
+        </div>
+        <div class="two">
+          <div class="card">
+            <h3>Traces</h3>
+            <label style="display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:13px">
+              <input type="checkbox" id="setWipe" style="width:auto" /> scrub the injected buffer after loading
+            </label>
+            <label style="display:flex;gap:10px;align-items:center;font-size:13px">
+              <input type="checkbox" id="setShred" style="width:auto" /> shred scratch files when NightRelay exits
+            </label>
+            <p class="hint" style="margin-top:11px">No telemetry, no crash reporting, no background traffic. Scripts are never written to disk unless you press save. Credentials sit in a DPAPI-sealed vault.</p>
+            <div class="row" style="margin-top:12px">
+              <button class="tiny danger" id="btnWipe2">wipe traces now</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>About</h3>
+            <div class="kv" id="about"></div>
+            <p class="hint" style="margin-top:12px" id="aboutHonest"></p>
+          </div>
+        </div>
+        <div class="card"><button class="primary" id="btnSaveSettings">save</button></div>
+      </section>
+    </div>
+  </main>
+</div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+async function api(path, opts = {}) {
+  try {
+    const res = await fetch(path, {
+      headers: { "Content-Type": "application/json" },
+      ...opts,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    return await res.json();
+  } catch (e) { return { ok: false, message: String(e) }; }
+}
+function toast(msg, kind = "") {
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  $("toasts").appendChild(el);
+  setTimeout(() => { el.style.opacity = "0"; el.style.transition = ".3s"; }, 4600);
+  setTimeout(() => el.remove(), 5100);
+}
+function dot(id, kind) { const el = $(id); if (el) el.className = "dot " + kind; }
+
+/* --------------------------------------------------------------- routing */
+const TITLES = {
+  relay: ["Relay", "attach, then run"],
+  ai: ["DeepSeek", "write the script"],
+  boost: ["Frame cap", "raise the fps limit"],
+  scripts: ["Scripts", "search the hubs"],
+  settings: ["Settings", "delivery and traces"],
+};
+function show(view) {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "view-" + view));
+  $("viewTitle").textContent = TITLES[view][0];
+  $("viewSub").textContent = TITLES[view][1];
+}
+$("nav").onclick = (e) => { const b = e.target.closest(".nav-item"); if (b) show(b.dataset.view); };
+
+/* ---------------------------------------------------------------- editor */
+function highlightLua(src) {
+  const KW = new Set("and break do else elseif end false for function if in local nil not or repeat return then true until while continue self goto".split(" "));
+  const GLB = new Set(("game workspace script Instance Enum Vector3 CFrame Color3 UDim2 task wait spawn delay print warn error pcall xpcall getgenv loadstring " +
+    "require tostring tonumber typeof pairs ipairs next select unpack type rawget rawset setclipboard getconnections firesignal fireclickdetector " +
+    "firetouchinterest isfile readfile writefile listfiles makefolder delfolder appendfile setfpscap string table math os coroutine bit32 utf8 tick " +
+    "identifyexecutor shared debug hookfunction getrawmetatable").split(" "));
+  const e2 = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const wrap = (c, t) => `<span class="t-${c}">${e2(t)}</span>`;
+  let out = "", i = 0; const n = src.length;
+  while (i < n) {
+    const c = src[i], c2 = src.substr(i, 2), c4 = src.substr(i, 4);
+    if (c2 === "--") {
+      if (c4 === "--[[") { const k = src.indexOf("]]", i + 4), j = k === -1 ? n : k + 2; out += wrap("cm", src.slice(i, j)); i = j; continue; }
+      const k = src.indexOf("\n", i), j = k === -1 ? n : k; out += wrap("cm", src.slice(i, j)); i = j; continue;
+    }
+    if (c === "[" && src[i + 1] === "[") { const k = src.indexOf("]]", i + 2), j = k === -1 ? n : k + 2; out += wrap("st", src.slice(i, j)); i = j; continue; }
+    if (c === '"' || c === "'") { let j = i + 1; while (j < n && src[j] !== c) { if (src[j] === "\\") j++; j++; } j = Math.min(j + 1, n); out += wrap("st", src.slice(i, j)); i = j; continue; }
+    if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(src[i + 1] || ""))) { let j = i; while (j < n && /[0-9a-fA-FxX._]/.test(src[j])) j++; out += wrap("nm", src.slice(i, j)); i = j; continue; }
+    if (/[A-Za-z_]/.test(c)) {
+      let j = i; while (j < n && /[A-Za-z0-9_]/.test(src[j])) j++;
+      const w = src.slice(i, j);
+      let k = j; while (k < n && /\s/.test(src[k]) && src[k] !== "\n") k++;
+      out += KW.has(w) ? wrap("kw", w) : GLB.has(w) ? wrap("gl", w) : src[k] === "(" ? wrap("fn", w) : e2(w);
+      i = j; continue;
+    }
+    out += e2(c); i++;
+  }
+  return out + "\n";
+}
+let hlTimer = null;
+function paint() {
+  $("hl").innerHTML = highlightLua($("code").value);
+  $("tBytes").textContent = new Blob([$("code").value]).size.toLocaleString() + " bytes";
+}
+$("code").addEventListener("input", () => { clearTimeout(hlTimer); hlTimer = setTimeout(paint, 90); });
+$("code").addEventListener("scroll", () => { $("hl").scrollTop = $("code").scrollTop; $("hl").scrollLeft = $("code").scrollLeft; });
+$("code").addEventListener("keydown", (e) => {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const t = e.target, s = t.selectionStart;
+    t.value = t.value.slice(0, s) + "  " + t.value.slice(t.selectionEnd);
+    t.selectionStart = t.selectionEnd = s + 2; paint();
+  }
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(); }
+});
+function setCode(text, name) { $("code").value = text || ""; if (name) $("fileName").textContent = name; paint(); }
+
+/* ---------------------------------------------------------------- attach */
+let STATE = { attached: null, identity: {}, fps: {}, aiMode: "unconfigured" };
+
+function renderBanner(link) {
+  const b = $("banner");
+  if (!link || !link.ok) {
+    b.classList.remove("live");
+    $("bAvatar").textContent = "—";
+    $("bTitle").textContent = "Not attached";
+    $("bMeta").textContent = "open Roblox, then press attach";
+    $("bNote").textContent = "NightRelay links to the client you are already signed into and reads the account from Roblox's own files.";
+    $("btnAttach").textContent = "Attach";
+    dot("dAttach", "bad"); $("sAttach").textContent = "not attached";
+    $("pillDelivery").textContent = "delivery: —";
+    return;
+  }
+  const id = link.identity || {};
+  const who = id.display_name || id.username || "unknown";
+  b.classList.add("live");
+  $("bAvatar").textContent = (who.slice(0, 2) || "??").toUpperCase();
+  $("bTitle").textContent = "Attached as " + who;
+  $("bMeta").textContent = [
+    id.username ? "@" + id.username : "",
+    id.user_id ? "user id " + id.user_id : "",
+    "pid " + link.pid,
+    link.title ? "· " + link.title : "",
+  ].filter(Boolean).join("  ·  ");
+  $("bNote").textContent = link.detail;
+  $("btnAttach").textContent = "Re-attach";
+  dot("dAttach", "ok"); $("sAttach").textContent = "attached: " + who;
+  const br = link.bridge || {};
+  const ld = link.loader || {};
+  if (ld.ok) {
+    $("pillDelivery").textContent = "delivery: loader live (" + (ld.connected || 1) + ")";
+    $("pillDelivery").className = "pill on";
+  } else if (br.ok) {
+    $("pillDelivery").textContent = "delivery: bridge " + br.url;
+    $("pillDelivery").className = "pill on";
+  } else {
+    $("pillDelivery").textContent = "delivery: no engine — paste the loader";
+    $("pillDelivery").className = "pill warn";
+  }
+}
+$("btnAttach").onclick = doAttach;
+async function doAttach() {
+  $("btnAttach").disabled = true;
+  const r = await api("/api/executor/attach", { method: "POST", body: {} });
+  $("btnAttach").disabled = false;
+  if (r.ok) {
+    STATE.attached = r;
+    toast("Attached as " + ((r.identity || {}).display_name || "your account"), "ok");
+  } else {
+    toast(r.message + (r.detail ? " — " + r.detail : ""), "error");
+  }
+  renderBanner(r);
+  refreshHistory();
+}
+/* What NightRelay can actually relay to. This panel exists so the app never
+   implies it can execute on its own: it relays, the engine executes. */
+function renderEngine(report) {
+  if (!report) return;
+  const found = report.candidates || [];
+  const loaders = found.filter((c) => c.kind === "loader");
+  const http = found.filter((c) => c.kind === "http");
+  const pipes = found.filter((c) => c.kind === "pipe");
+  const folders = found.filter((c) => c.kind === "folder");
+
+  $("tEngine").textContent =
+    `${report.scanned ?? 0} listener(s) scanned`
+    + (report.elapsedMs != null ? ` · ${report.elapsedMs}ms` : "")
+    + (report.cached ? " · cached" : "");
+  const pill = $("pillEngine");
+
+  if (loaders.length) {
+    pill.textContent = "engine: loader (" + loaders.length + " live)";
+    pill.className = "pill on";
+    $("engineNote").textContent =
+      "A loader is connected inside your client — scripts run there and the output comes back "
+      + "here. " + loaders[0].evidence + ". Nothing is injected; your executor runs the code.";
+  } else if (http.length) {
+    pill.textContent = "engine: " + http[0].url;
+    pill.className = "pill on";
+    $("engineNote").textContent =
+      `Found a live engine at ${http[0].url}. Scripts will be relayed there.`;
+  } else if (pipes.length) {
+    pill.textContent = "engine: named pipe";
+    pill.className = "pill on";
+    $("engineNote").textContent = `Found ${pipes[0].pipe} — scripts will be written to it.`;
+  } else {
+    pill.textContent = "no execution engine";
+    pill.className = "pill off";
+    $("engineNote").textContent =
+      "No loader is connected and nothing on this PC accepted a script. Press get loader, paste "
+      + "the snippet into your executor's autoexec folder, run it inside the game, then rescan. "
+      + "NightRelay carries the script; the executor is what runs it.";
+  }
+
+  const rows = [];
+  found.forEach((c) => {
+    rows.push(`<div class="list-item"><span class="tag v">${esc(c.kind)}</span>
+      <span class="mono" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.url || c.pipe || c.folder)}</span>
+      <span class="hint">${esc(c.evidence)}</span></div>`);
+  });
+  if (folders.length && !http.length) {
+    rows.push(`<div class="hint" style="padding:6px 10px">A watch folder exists: <span class="mono">${esc(folders[0].folder)}</span> — set it under Settings → watch folder to drop scripts into it.</div>`);
+  }
+  (report.selftest || []).forEach((c) => {
+    rows.push(`<div class="list-item"><span class="tag p">stub</span>
+      <span class="mono" style="flex:1">${esc(c.url)}</span>
+      <span class="hint">inert — accepts a script and records it, runs nothing</span></div>`);
+  });
+
+  /* Every port that was looked at, and the exact reason it was passed over.
+     A listener that accepts the connection then goes quiet is the one case that
+     can slow a scan down, so it is called out rather than left as a mystery. */
+  const listeners = report.listeners || [];
+  if (listeners.length) {
+    const silent = listeners.filter((l) => /never answered|budget/i.test(l.reason || ""));
+    const detail = listeners.map((l) => `
+      <div class="list-item" style="padding:3px 0">
+        <span class="tag ${l.open ? "v" : ""}">${l.open ? "open" : "shut"}</span>
+        <span class="mono" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">127.0.0.1:${l.port} · ${esc(l.process || "unknown")}</span>
+        <span class="hint">${esc(l.reason || "not probed")}</span>
+      </div>`).join("");
+    rows.push(`<details style="padding:6px 10px">
+      <summary class="hint" style="cursor:pointer">why ${listeners.length} port(s) were rejected`
+      + (silent.length ? ` · ${silent.length} accepted the socket then went quiet` : "")
+      + `</summary><div style="margin-top:6px">${detail}</div></details>`);
+  }
+
+  $("engineCandidates").innerHTML = rows.join("");
+}
+
+/* The stub proves the relay path without pretending to execute. */
+async function toggleStub() {
+  const on = !(STATE.selftest && STATE.selftest.running);
+  const btn = $("btnStub");
+  btn.disabled = true;
+  const r = await api("/api/executor/selftest", { method: "POST", body: on ? {} : { stop: true } });
+  btn.disabled = false;
+  STATE.selftest = r.status;
+  toast(r.message, r.ok ? "ok" : "error");
+  renderStub(r.status);
+  await scanEngines();
+  if (on) {
+    $("pillStub").textContent = "stub is up — run a script to see it travel";
+  }
+}
+
+function renderStub(status) {
+  STATE.selftest = status || {};
+  const running = !!(status && status.running);
+  const pill = $("pillStub");
+  pill.style.display = running ? "inline-flex" : "none";
+  if (running) {
+    pill.textContent = `self-test stub: ${status.remaining_s}s left`;
+    pill.className = "pill warn";
+  }
+  $("btnStub").textContent = running ? "stop self-test" : "run self-test";
+}
+
+$("btnStub").onclick = toggleStub;
+
+/* The loader bridge. A Lua loader sitting inside the client asks this app for
+   work; that is the path that actually executes. Nothing is injected. */
+function renderLoader(status) {
+  const pill = $("pillLoader");
+  if (!pill) return;
+  const list = (status && status.sessions) || [];
+  if (list.length) {
+    const who = list[0].player || "a client";
+    pill.textContent = "loader: " + list.length + " live · " + who;
+    pill.className = "pill on";
+  } else if (status && status.running) {
+    pill.textContent = "loader: none connected";
+    pill.className = "pill warn";
+  } else {
+    pill.textContent = "loader: bridge offline";
+    pill.className = "pill off";
+  }
+}
+async function refreshLoader() {
+  const s = await api("/api/bridge");
+  renderLoader(s);
+  return s;
+}
+$("btnGetLoader").onclick = async () => {
+  const d = await api("/api/bridge/loader");
+  if (!d.ok) { toast(d.message || "could not build the loader", "error"); return; }
+  setCode(d.source, "nightrelay_loader.lua");
+  toast("loader loaded into the editor — copy it into your executor's autoexec", "ok");
+};
+
+async function scanEngines(refresh = false) {
+  const btn = $("btnScan");
+  btn.disabled = true;
+  $("pillEngine").textContent = "scanning…";
+  const t0 = performance.now();
+  const report = await api("/api/executor/scan", { method: "POST", body: { refresh } });
+  report.elapsedMs = Math.round(performance.now() - t0);
+  btn.disabled = false;
+  renderEngine(report);
+  return report;
+}
+
+$("btnScan").onclick = async () => {
+  // An explicit rescan asks for live data; the automatic one may reuse a cache.
+  const r = await scanEngines(true);
+  toast(r.summary, r.ok ? "ok" : "warn");
+};
+
+async function refreshHistory() {
+  const d = await api("/api/executor");
+  const rows = d.history || [];
+  $("history").innerHTML = rows.length ? rows.map((r) => `
+    <div class="list-item" style="align-items:flex-start">
+      <span class="dot ${r.ok ? "ok" : "bad"}" style="margin-top:6px"></span>
+      <div style="min-width:0;flex:1">
+        <div class="mono" style="font-size:11.5px;color:var(--dim)">${esc(r.time)} · ${esc(r.backend)} · pid ${esc(r.pid ?? "—")} · ${esc(r.duration_ms)}ms</div>
+        <div style="font-size:12.8px">${esc(r.message)}${r.detail ? ' <span class="hint">— ' + esc(String(r.detail).slice(0, 150)) + "</span>" : ""}</div>
+      </div>
+    </div>`).join("") : '<div class="empty">nothing run yet</div>';
+}
+
+/* ------------------------------------------------------------------- run */
+async function run() {
+  const code = $("code").value;
+  if (!code.trim()) { toast("nothing to run", "warn"); return; }
+  $("btnExec").disabled = true;
+  const r = await api("/api/execute", { method: "POST", body: { code } });
+  $("btnExec").disabled = false;
+  const said = r.output ? String(r.output).trim().split("\n").slice(0, 3).join(" / ") : r.detail;
+  toast(r.message + (said ? " — " + String(said).slice(0, 180) : ""), r.ok ? "ok" : "error");
+  refreshHistory();
+}
+
+/* --------------------------------------------------------------- scripts */
+let SOURCES = [], CUSTOM = [], PICKED = [];
+$("btnSearch").onclick = search;
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter") search(); });
+async function loadSources() {
+  const d = await api("/api/library/sources");
+  SOURCES = d.builtin || []; CUSTOM = d.custom || [];
+  PICKED = SOURCES.map((s) => s.id);
+  $("sourceChips").innerHTML = SOURCES.map((s) => `<span class="chip on" data-id="${esc(s.id)}">${esc(s.label)}</span>`).join("");
+  $("sourceChips").querySelectorAll(".chip").forEach((c) => c.onclick = () => {
+    const id = c.dataset.id;
+    PICKED = PICKED.includes(id) ? PICKED.filter((x) => x !== id) : [...PICKED, id];
+    c.classList.toggle("on");
+  });
+}
+async function search() {
+  $("tResults").textContent = "searching…";
+  $("results").innerHTML = '<div class="empty">reaching the hubs…</div>';
+  const d = await api(`/api/library/search?q=${encodeURIComponent($("q").value.trim())}&sources=${encodeURIComponent(PICKED.join(","))}`);
+  $("tResults").textContent = `${d.count} hit(s) · ${d.elapsed_ms}ms`;
+  if (!(d.results || []).length) {
+    $("results").innerHTML = `<div class="empty">no results<br><span class="hint">${(d.sources || []).map((s) => esc(s.label) + " " + (s.error ? "→ " + esc(String(s.error).slice(0, 40)) : s.results.length)).join(" · ")}</span></div>`;
+    return;
+  }
+  $("results").innerHTML = '<div class="results">' + d.results.map((r, i) => `
+    <div class="sc" data-i="${i}">
+      ${r.game ? `<div class="game">⌗ ${esc(r.game)}</div>` : ""}
+      <h4>${esc(r.title)}</h4>
+      <div class="meta"><span class="tag src">${esc(r.source_label)}</span>
+        ${r.verified ? '<span class="tag v">verified</span>' : ""}
+        ${r.patched ? '<span class="tag p">patched?</span>' : ""}
+        ${r.has_code ? '<span class="tag v">inline</span>' : '<span class="tag">fetch</span>'}
+        <span>${(r.views || 0).toLocaleString()} views</span></div>
+    </div>`).join("") + "</div>";
+  $("results").querySelectorAll(".sc").forEach((c) => c.onclick = () => loadResult(d.results[+c.dataset.i]));
+}
+async function loadResult(r) {
+  let code = r.code || "";
+  if (!code) {
+    const d = await api("/api/library/fetch", { method: "POST", body: { result: r } });
+    if (!d.ok) { toast(d.message || "could not read the body", "error"); return; }
+    code = d.code;
+  }
+  setCode(code, (r.title || "script").replace(/[^A-Za-z0-9._ -]+/g, "_").slice(0, 42) + ".lua");
+  show("relay");
+  toast('loaded "' + r.title + '"', "ok");
+}
+async function loadLocal() {
+  const d = await api("/api/library/local");
+  const rows = d.scripts || [];
+  $("tLocal").textContent = rows.length + " saved";
+  $("local").innerHTML = rows.length ? rows.map((r) => `
+    <div class="list-item"><span class="mono" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)}</span>
+    <span class="hint">${esc(r.bytes)}B</span>
+    <button class="tiny" data-open="${esc(r.name)}">open</button>
+    <button class="tiny danger" data-del="${esc(r.name)}">del</button></div>`).join("")
+    : '<div class="empty">nothing saved</div>';
+  $("local").querySelectorAll("[data-open]").forEach((b) => b.onclick = async () => {
+    const d2 = await api("/api/library/local/" + encodeURIComponent(b.dataset.open));
+    setCode(d2.code, b.dataset.open); show("relay");
+  });
+  $("local").querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => {
+    await api("/api/library/local?name=" + encodeURIComponent(b.dataset.del), { method: "DELETE" });
+    loadLocal(); toast("removed", "warn");
+  });
+}
+
+/* ------------------------------------------------------------- deepseek */
+function md(text) {
+  const parts = String(text).split(/```/);
+  return parts.map((p, i) => {
+    if (i % 2 === 1) {
+      const nl = p.indexOf("\n"), lang = nl === -1 ? "" : p.slice(0, nl).trim(), body = nl === -1 ? p : p.slice(nl + 1);
+      const id = "c" + Math.random().toString(36).slice(2, 9);
+      return `<div class="codebar"><span>${esc(lang || "lua")}</span>
+        <button class="tiny" onclick="toConsole('${id}')">send to relay</button>
+        <button class="tiny ghost" onclick="copyCode('${id}')">copy</button></div><pre id="${id}">${esc(body)}</pre>`;
+    }
+    return esc(p).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\n/g, "<br>");
+  }).join("");
+}
+window.toConsole = (id) => { const p = document.getElementById(id); if (p) { setCode(p.textContent, "deepseek.lua"); show("relay"); toast("moved into the relay", "ok"); } };
+window.copyCode = (id) => { const p = document.getElementById(id); if (p) navigator.clipboard.writeText(p.textContent).then(() => toast("copied", "ok")); };
+function addMsg(role, text) {
+  const el = document.createElement("div");
+  el.className = "msg " + (role === "user" ? "me" : "");
+  el.innerHTML = `<div class="av">${role === "user" ? "YOU" : "DS"}</div><div class="bubble">${md(text || "")}</div>`;
+  $("chat").appendChild(el);
+  $("chat").parentElement.scrollTop = 1e9;
+  return el;
+}
+let CHAT = [], busy = false;
+$("btnSend").onclick = send;
+$("aiInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+async function send() {
+  const text = $("aiInput").value.trim();
+  if (!text || busy) return;
+  busy = true; $("btnSend").disabled = true; $("aiInput").value = "";
+  addMsg("user", text); CHAT.push({ role: "user", content: text });
+  const bubble = addMsg("assistant", "");
+  const target = bubble.querySelector(".bubble");
+  let acc = "", reasoning = "";
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: CHAT, model: $("aiModel").value }),
+    });
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n"); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+        if (ev.type === "text") { acc += ev.text; target.innerHTML = md(acc); }
+        else if (ev.type === "reasoning") {
+          reasoning += ev.text;
+          let box = target.querySelector(".think");
+          if (!box) { box = document.createElement("div"); box.className = "think"; target.prepend(box); }
+          box.textContent = reasoning;
+        } else if (ev.type === "error") { acc += (acc ? "\n\n" : "") + "**" + ev.text + "**"; target.innerHTML = md(acc); }
+      }
+      $("chat").parentElement.scrollTop = 1e9;
+    }
+    if (acc) CHAT.push({ role: "assistant", content: acc });
+  } catch (e) { target.innerHTML = md("**network error:** " + e.message); }
+  busy = false; $("btnSend").disabled = false;
+}
+let aiKind = "token";
+$("btnUseApi").onclick = () => {
+  aiKind = aiKind === "token" ? "api_key" : "token";
+  $("aiSecret").placeholder = aiKind === "token" ? "paste session token" : "paste sk-… api key";
+  $("btnUseApi").textContent = aiKind === "token" ? "use an API key instead" : "use a session token instead";
+};
+$("btnConnect").onclick = connectAi;
+$("aiSecret").addEventListener("keydown", (e) => { if (e.key === "Enter") connectAi(); });
+async function connectAi() {
+  const secret = $("aiSecret").value.trim();
+  if (!secret) { $("aiConnectMsg").textContent = "paste something first"; return; }
+  $("btnConnect").disabled = true;
+  $("aiConnectMsg").textContent = "verifying with DeepSeek…";
+  const r = await api("/api/ai/connect", { method: "POST", body: { secret, kind: aiKind } });
+  $("btnConnect").disabled = false;
+  $("aiConnectMsg").textContent = r.message || "";
+  if (r.ok) { $("aiSecret").value = ""; toast(r.message, "ok"); applyAiMode(r.mode, r.secrets); }
+  else toast(r.message, "error");
+}
+$("btnAiOff").onclick = async () => {
+  const r = await api("/api/ai/disconnect", { method: "POST" });
+  applyAiMode(r.mode, r.secrets); CHAT = []; $("chat").innerHTML = "";
+  toast("DeepSeek disconnected", "warn");
+};
+$("btnAiNew").onclick = async () => { await api("/api/chat/reset", { method: "POST" }); toast("new session"); };
+document.querySelectorAll(".chip[data-prompt]").forEach((c) => c.onclick = () => { $("aiInput").value = c.dataset.prompt; $("aiInput").focus(); });
+function applyAiMode(mode, secrets) {
+  STATE.aiMode = mode;
+  const on = mode !== "unconfigured";
+  $("aiGate").style.display = on ? "none" : "block";
+  $("aiWorkspace").style.display = on ? "block" : "none";
+  $("sAi").textContent = "DeepSeek: " + (mode === "web" ? "session" : mode === "api" ? "api key" : "off");
+  dot("dAi", on ? "ok" : "bad");
+  $("tAiMode").textContent = on ? (mode === "web" ? "session token" : "api key") : "";
+}
+
+/* ---------------------------------------------------------------- boost */
+function renderFps(d) {
+  STATE.fps = d;
+  const on = !!d.unlock;
+  const target = Number(d.target ?? 999);
+  const cap = Number(d.cap ?? d.default_fps ?? 60);
+
+  /* The big number is always what Roblox is genuinely capped at right now.
+     Claiming the raised number while the cap is still in place would be the app
+     asserting a state it has not reached -- so "armed" shows the real cap and
+     says plainly that the raise is waiting on Roblox exiting. */
+  const landed = on && cap === target;
+  $("fpsBig").textContent = landed ? target : cap;
+  $("fpsBigLabel").textContent = landed ? "uncapped" : (on ? "armed" : "locked");
+  $("tFpsState").textContent = d.running ? "roblox is open" : "roblox is closed";
+
+  const btn = $("btnFpsToggle");
+  btn.textContent = on ? "Disable — go back to default" : "Enable uncapped frame rate";
+  btn.className = "big " + (on ? "ok" : "primary");
+  btn.style.width = "100%";
+  btn.style.justifyContent = "center";
+
+  if (landed) {
+    $("fpsExplain").textContent =
+      `Uncapped to ${target}. Roblox reads this at startup, so it is already in effect.`;
+  } else if (on && d.running) {
+    $("fpsExplain").textContent =
+      `Waiting on Roblox. It is open right now and still capped at ${cap}; it rewrites its `
+      + `settings file when it closes, so the raise to ${target} lands the moment you quit. `
+      + "NightRelay is watching for that — nothing else to do.";
+  } else if (on) {
+    $("fpsExplain").textContent =
+      `Armed to ${target}, but the cap still reads ${cap}. Launch Roblox once and it will `
+      + "pick the change up.";
+  } else {
+    $("fpsExplain").textContent =
+      "Roblox is limited to its default 60 fps. Flip the switch to raise it — "
+      + "you do not need to pick a number.";
+  }
+
+  $("fpsStatus").innerHTML = `
+    <b>switch</b><span>${on ? "enabled" : "disabled"}</span>
+    <b>cap in place now</b><span>${esc(cap)}</span>
+    <b>will run at</b><span>${on ? esc(target) : esc(d.default_fps ?? 60)}</span>
+    <b>applied</b><span>${landed ? "yes" : (on ? "waiting on Roblox" : "no")}</span>
+    <b>watcher</b><span>${d.watcher && d.watcher.running ? "active" : "idle"}</span>`;
+
+  const denied = d.denied_flags || [];
+  $("tDenied").textContent = denied.length + " denied";
+  $("deniedExplain").textContent = denied.length
+    ? "Roblox refuses to read these from disk on the installed build, so the fast-flag file cannot move the cap. NightRelay writes Roblox's own frame-rate setting instead — the switch above uses that path."
+    : "No refused flags logged. The fast-flag file will be honoured on this build too.";
+  $("deniedList").textContent = denied.join("\n");
+
+  dot("dFps", on ? "ok" : "warn");
+  $("sFps").textContent = on ? `fps: uncapped (${target})` : "fps: default";
+}
+
+$("btnFpsToggle").onclick = async () => {
+  const btn = $("btnFpsToggle");
+  btn.disabled = true;
+  const r = await api("/api/fps/toggle", { method: "POST", body: { enabled: !STATE.fps.unlock } });
+  btn.disabled = false;
+  toast(r.message, r.ok ? "ok" : "warn");
+  renderFps(r.status || await api("/api/fflags"));
+};
+
+/* ------------------------------------------------------------- settings */
+async function refreshProcesses() {
+  const d = await api("/api/roblox");
+  const n = (d.clients || []).length;
+  const id = d.identity || {};
+  dot("dRoblox", n ? "ok" : "warn");
+  $("sRoblox").textContent = n
+    ? `Roblox: ${id.username ? "@" + id.username : n + " client(s)"}`
+    : (d.installed ? "Roblox: closed" : "Roblox: not installed");
+  return d;
+}
+$("btnProbe").onclick = async () => {
+  const r = await api("/api/executor/probe", { method: "POST" });
+  toast(r.message, r.ok ? "ok" : "warn");
+};
+$("btnMulti").onclick = async () => { const r = await api("/api/roblox/multi-instance", { method: "POST" }); toast(r.message, r.ok ? "ok" : "warn"); };
+$("btnLaunch").onclick = async () => { const r = await api("/api/roblox/launch", { method: "POST", body: {} }); toast(r.message, r.ok ? "ok" : "error"); };
+$("btnKill").onclick = async () => { if (confirm("Close every Roblox client?")) { const r = await api("/api/roblox/kill", { method: "POST" }); toast(r.message, "warn"); } };
+async function wipe() { const r = await api("/api/panic", { method: "POST" }); toast(r.message || "traces wiped", "warn"); }
+$("btnWipe").onclick = wipe;
+$("btnWipe2").onclick = wipe;
+$("btnSaveSettings").onclick = async () => {
+  await api("/api/settings", { method: "POST", body: { settings: {
+    executor: {
+      external_url: $("setExtUrl").value.trim(),
+      pipe_name: $("setPipe").value.trim(),
+      dll_path: $("setDll").value.trim(),
+      autoexec_dir: $("setAutoexec").value.trim(),
+      bridge_port: parseInt($("setBridgePort").value, 10) || 8792,
+      wipe_buffer: $("setWipe").checked,
+      shred_on_exit: $("setShred").checked,
+    },
+  } } });
+  toast("saved", "ok");
+};
+$("btnClear").onclick = () => setCode("", "unnamed.lua");
+$("btnCopy").onclick = () => navigator.clipboard.writeText($("code").value).then(() => toast("copied", "ok"));
+$("btnSaveLocal").onclick = async () => {
+  const name = prompt("save as", $("fileName").textContent.replace(/\.lua$/, ""));
+  if (!name) return;
+  const r = await api("/api/library/local", { method: "POST", body: { name, code: $("code").value } });
+  $("fileName").textContent = r.name;
+  toast("saved " + r.name, "ok"); loadLocal();
+};
+$("btnExec").onclick = run;
+
+/* ------------------------------------------------------------------ boot */
+async function boot() {
+  const st = await api("/api/state");
+  const set = await api("/api/settings");
+  const e = (set.settings || {}).executor || {};
+  $("setExtUrl").value = e.external_url || "";
+  $("setPipe").value = e.pipe_name || "";
+  $("setDll").value = e.dll_path || "";
+  $("setAutoexec").value = e.autoexec_dir || "";
+  $("setBridgePort").value = e.bridge_port != null ? e.bridge_port : 8792;
+  $("setWipe").checked = e.wipe_buffer !== false;
+  $("setShred").checked = e.shred_on_exit !== false;
+  $("aiModel").value = ((set.settings || {}).ai || {}).model || "deepseek-chat";
+  applyAiMode(st.ai.mode, set.secrets);
+  await refreshProcesses();
+  renderFps(st.fflags || {});
+  await refreshHistory();
+  scanEngines();
+  renderStub(st.selftest || {});
+  renderLoader(st.loader || {});
+  await loadSources();
+  await loadLocal();
+  $("about").innerHTML = `
+    <b>version</b><span>${esc(st.version)}</span>
+    <b>data dir</b><span>${esc(st.data_dir)}</span>
+    <b>roblox build</b><span>${esc(((st.roblox || {}).versions || [])[0] || "—")}</span>
+    <b>elevated</b><span>${(st.roblox || {}).elevated ? "yes" : "no"}</span>`;
+  $("aboutHonest").textContent =
+    "NightRelay is the console, the library and the frame-cap tool. It ships no anti-cheat bypass: loading a module into a protected Roblox client is blocked in the kernel, so the direct loader reports a refusal rather than pretending. The execution path is the loader bridge — press get loader, drop the snippet into your own executor's autoexec, and scripts you run here execute inside the client through it. Frame cap and script search work on their own with nothing else installed.";
+  const ex = await api("/api/executor");
+  if ((ex.attached || []).length) { $("btnAttach").textContent = "Re-attach"; }
+  paint();
+}
+setInterval(refreshProcesses, 5000);
+setInterval(refreshLoader, 4000);
+boot();
+</script>
+</body>
+</html>

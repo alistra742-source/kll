@@ -1,0 +1,25 @@
+# build output
+build/
+dist/
+*.spec.bak
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# packager scratch
+*.manifest
+*.pkg
+
+# runtime scratch (NightRelay writes these under %LOCALAPPDATA%)
+data/
+runtime/
+
+# editor / os
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
